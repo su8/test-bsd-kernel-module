@@ -1,1 +1,1 @@
-# test-freebsd-kernel-module
+Playground and testing
