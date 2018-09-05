@@ -1,47 +1,49 @@
-/*
- * Step 1 - Add the four needed libraries to include
- */
 #include <sys/param.h>
 #include <sys/module.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
+#include <sys/proc.h>
+#include <sys/kthread.h>
 
-/*
- * Step 2 - Handle the load/unload event
- */
-static int EventHandler(struct module *inModule, int inEvent, void *inArg)
-{
-        // Set return code to 0
-        int returnCode = 0;
+static unsigned int quit = 0U;
+static struct proc *mainproc = NULL;
 
-        switch (inEvent)
-        {
-          case MOD_LOAD:
-                uprintf("Hello, World! \n");
-                break;
-          case MOD_UNLOAD:
-                uprintf("Bye, World! \n");
-                break;
-          default:
-                returnCode = EOPNOTSUPP;
-                break;
-        }
-
-        return(returnCode);
+static void main_thread(void *arg) {
+  while (1) {
+    if (1U == quit) {
+      break;
+    }
+  }
+  kthread_exit();
 }
 
-/*
- * Step 3 - Name the module and the event hander function
- *          This is done using a struct of type moduledata_T
- */
-static moduledata_t  moduleData = {
-        "hello_world_kmod",     // Module Name
-        EventHandler,           // Event handler function name
-        NULL                    // Extra data
+static void proc_routine(void *arg) {
+  struct thread *td = curthread;
+  struct proc *p = td->td_proc;
+  struct thread *ntd = NULL;
+  kthread_add(main_thread, NULL, p, &ntd, 0, 0, "kthread");
+  kproc_exit(0);
+}
+
+static int EventHandler(struct module *inModule, int inEvent, void *inArg) {
+  switch (inEvent) {
+    case MOD_LOAD: {
+      kproc_create(proc_routine, NULL, &mainproc, 0, 0, "proc list looper");
+    }
+    break;
+  case MOD_UNLOAD:
+    quit = 1U;
+    break;
+  default:
+    break;
+  }
+  return 0;
+}
+
+static moduledata_t moduleData = {
+  "hello_world_kmod",     // Module Name
+  EventHandler,           // Event handler function name
+  NULL                    // Extra data
 };
 
-/*
- * Step 4 - Declare the module
- *          This is done with the DECLARE_MODULE macro
- */
 DECLARE_MODULE(hello_world_kmod, moduleData, SI_SUB_DRIVERS, SI_ORDER_MIDDLE);
